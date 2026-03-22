@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Meeting from "../models/meeting.model";
 import { v4 as uuidv4 } from "uuid";
+import { getIO } from "../socket";
 
 export const createMeeting = async (req: Request, res: Response) => {
   try {
@@ -51,6 +52,12 @@ export const joinMeeting = async (req: Request, res: Response) => {
             await meeting.save();
         }
     }
+    const io = getIO();
+
+    io.to(meetingId).emit("user-joined", {
+      userId: userId
+    });
+
     res.status(201).json({
       message: "Meeting joined",
       meeting
@@ -82,6 +89,13 @@ export const leaveMeeting = async (req: Request, res: Response) => {
     // Remove user from participants
     meeting.participants = meeting.participants.filter(id => id.toString() !== userId);
     await meeting.save();
+
+    const io = getIO();
+
+    io.to(meetingId).emit("user-left", {
+      userId: userId
+    });
+
     res.status(200).json({
       message: "Left the meeting successfully",
       meeting
