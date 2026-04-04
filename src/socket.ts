@@ -18,9 +18,45 @@ export const initSocket = (server: any) => {
 
       console.log(`User ${userId} joined meeting ${meetingId}`);
 
-      // Notify others
+      // 🔥 Get all users in room
+      const users = Array.from(
+        io.sockets.adapter.rooms.get(meetingId) || [],
+      ).filter((id) => id !== socket.id);
+
+      // 🔥 Send existing users to NEW user
+      socket.emit("existing-users", users);
+
+      // 🔥 Notify others
       socket.to(meetingId).emit("user-joined", {
         userId,
+        socketId: socket.id,
+      });
+    });
+
+    socket.on("offer", ({ offer, to }) => {
+      console.log("📡 Offer from", socket.id, "to", to);
+
+      socket.to(to).emit("offer", {
+        offer,
+        from: socket.id,
+      });
+    });
+
+    socket.on("answer", ({ answer, to }) => {
+      console.log("📡 Answer from", socket.id, "to", to);
+
+      socket.to(to).emit("answer", {
+        answer,
+        from: socket.id,
+      });
+    });
+
+    socket.on("ice-candidate", ({ candidate, to }) => {
+      console.log("📡 ICE candidate from", socket.id, "to", to);
+
+      socket.to(to).emit("ice-candidate", {
+        candidate,
+        from: socket.id,
       });
     });
 
