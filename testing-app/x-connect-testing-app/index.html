@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>X-Connect Testing App</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    h1 { text-align: center; }
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .controls input {
+      padding: 0.4rem 0.6rem;
+      font-size: 1rem;
+    }
+    .controls button {
+      padding: 0.4rem 1rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .videos {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .video-box {
+      flex: 1;
+      min-width: 300px;
+    }
+    .video-box h3 { margin: 0 0 0.3rem; }
+    video {
+      width: 100%;
+      background: #000;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>X-Connect WebRTC Test</h1>
+
+  <!-- Meeting controls -->
+  <div class="controls">
+    <input id="meetingId" type="text" placeholder="Meeting ID" />
+    <input id="userId" type="text" placeholder="User ID" />
+    <button id="joinBtn">Join Meeting</button>
+  </div>
+
+  <!-- Video elements -->
+  <div class="videos">
+    <div class="video-box">
+      <h3>Local Video</h3>
+      <video id="localVideo" autoplay muted playsinline></video>
+    </div>
+    <div class="video-box">
+      <h3>Remote Video</h3>
+      <video id="remoteVideo" autoplay playsinline></video>
+    </div>
+  </div>
+
+  <!-- Socket.IO client from CDN -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
