@@ -14,12 +14,17 @@ const remoteVideo = document.getElementById("remoteVideo");
 const meetingIdInput = document.getElementById("meetingId");
 const userIdInput = document.getElementById("userId");
 const joinBtn = document.getElementById("joinBtn");
+const leaveBtn = document.getElementById("leaveBtn");
+const muteBtn = document.getElementById("muteBtn");
+const videoBtn = document.getElementById("videoBtn");
 
 // --- State ---
 // Map of socketId -> RTCPeerConnection (one per remote peer)
 const peerConnections = {};
 let localStream = null;
 let socket = null;
+let isMuted = false;
+let isVideoOff = false;
 
 // ============================================================
 // 1. Capture local media (camera + microphone)
@@ -85,8 +90,27 @@ function createPeerConnection(remoteSocketId) {
   // When remote tracks arrive, attach them to the remote video element.
   pc.ontrack = (event) => {
     console.log("Received remote track from", remoteSocketId);
-    // event.streams[0] contains the remote MediaStream
-    remoteVideo.srcObject = event.streams[0];
+
+    let video = document.getElementById(remoteSocketId);
+
+    if (!video) {
+      video = document.createElement("video");
+      video.id = remoteSocketId;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.style.width = "200px";
+
+      document.getElementById("remoteVideos").appendChild(video);
+    }
+
+    let stream = video.srcObject;
+
+    if (!stream) {
+      stream = new MediaStream();
+      video.srcObject = stream;
+    }
+
+    stream.addTrack(event.track);
   };
 
   // Store the connection for later use
@@ -215,9 +239,66 @@ function setupSocket(meetingId, userId) {
   socket.on("answer", handleAnswer);
   socket.on("ice-candidate", handleIceCandidate);
 
+  socket.on("user-left", ({ userId, socketId }) => {
+    console.log("User left:", socketId);
+
+    const pc = peerConnections[socketId];
+    if (pc) {
+      pc.close();
+      delete peerConnections[socketId];
+    }
+
+    // 🔥 Remove video element
+    const video = document.getElementById(socketId);
+    if (video) {
+      video.srcObject = null; // optional but clean
+      video.remove();
+    }
+  });
+
   socket.on("disconnect", () => {
     console.log("Disconnected from signalling server");
   });
+}
+
+function leaveMeeting() {
+  if (!socket) return;
+
+  const meetingId = meetingIdInput.value.trim();
+  const userId = userIdInput.value.trim();
+
+  // 🔥 Notify backend
+  socket.emit("leave-meeting", { meetingId, userId });
+
+  // 🔥 Close all peer connections
+  Object.keys(peerConnections).forEach((socketId) => {
+    const pc = peerConnections[socketId];
+    if (pc) {
+      pc.close();
+      delete peerConnections[socketId];
+    }
+  });
+
+  // 🔥 Remove ALL remote videos
+  const remoteContainer = document.getElementById("remoteVideos");
+  if (remoteContainer) {
+    remoteContainer.innerHTML = ""; // 🔥 clears everything
+  }
+
+  // 🔥 Stop local media
+  if (localStream) {
+    localStream.getTracks().forEach((track) => track.stop());
+  }
+
+  // 🔥 Clear local video
+  if (localVideo) {
+    localVideo.srcObject = null;
+  }
+
+  // 🔥 Disconnect socket
+  socket.disconnect();
+
+  console.log("Left meeting completely");
 }
 
 // ============================================================
@@ -243,3 +324,36 @@ joinBtn.addEventListener("click", async () => {
   joinBtn.disabled = true;
   joinBtn.textContent = "Joined";
 });
+
+leaveBtn.addEventListener("click", () => {
+  leaveMeeting();
+});
+
+muteBtn.addEventListener("click", () => {
+  if (!localStream) return;
+
+  const audioTrack = localStream.getAudioTracks()[0];
+  if (!audioTrack) return;
+
+  isMuted = !isMuted;
+  audioTrack.enabled = !isMuted;
+
+  muteBtn.textContent = isMuted ? "Unmute" : "Mute";
+
+  console.log("Audio enabled:", audioTrack.enabled);
+});
+
+videoBtn.addEventListener("click", () => {
+  if (!localStream) return;
+
+  const videoTrack = localStream.getVideoTracks()[0];
+  if (!videoTrack) return;
+
+  isVideoOff = !isVideoOff;
+  videoTrack.enabled = !isVideoOff;
+
+  videoBtn.textContent = isVideoOff ? "Turn Camera On" : "Turn Camera Off";
+
+  console.log("Video enabled:", videoTrack.enabled);
+});
+

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,7 +12,11 @@
       margin: 2rem auto;
       padding: 0 1rem;
     }
-    h1 { text-align: center; }
+
+    h1 {
+      text-align: center;
+    }
+
     .controls {
       display: flex;
       gap: 0.5rem;
@@ -19,25 +24,56 @@
       align-items: center;
       flex-wrap: wrap;
     }
+
     .controls input {
       padding: 0.4rem 0.6rem;
       font-size: 1rem;
     }
+
     .controls button {
       padding: 0.4rem 1rem;
       font-size: 1rem;
       cursor: pointer;
     }
+
+    #videoContainer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    video {
+      border: 2px solid #ccc;
+      border-radius: 8px;
+    }
+
+    #remoteVideos {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    #remoteVideos video {
+      width: 200px;
+      background: #000;
+      border-radius: 6px;
+    }
+
     .videos {
       display: flex;
       gap: 1rem;
       flex-wrap: wrap;
     }
+
     .video-box {
       flex: 1;
       min-width: 300px;
     }
-    .video-box h3 { margin: 0 0 0.3rem; }
+
+    .video-box h3 {
+      margin: 0 0 0.3rem;
+    }
+
     video {
       width: 100%;
       background: #000;
@@ -45,6 +81,7 @@
     }
   </style>
 </head>
+
 <body>
   <h1>X-Connect WebRTC Test</h1>
 
@@ -53,17 +90,22 @@
     <input id="meetingId" type="text" placeholder="Meeting ID" />
     <input id="userId" type="text" placeholder="User ID" />
     <button id="joinBtn">Join Meeting</button>
+    <button id="leaveBtn">Leave Meeting</button>
+    <button id="muteBtn">Mute</button>
+    <button id="videoBtn">Turn Camera Off</button>
   </div>
 
   <!-- Video elements -->
-  <div class="videos">
-    <div class="video-box">
-      <h3>Local Video</h3>
-      <video id="localVideo" autoplay muted playsinline></video>
-    </div>
-    <div class="video-box">
-      <h3>Remote Video</h3>
-      <video id="remoteVideo" autoplay playsinline></video>
+  <div id="videoContainer">
+    <div class="videos">
+      <div class="video-box">
+        <h3>Local Video</h3>
+        <video id="localVideo" autoplay muted playsinline></video>
+      </div>
+      <div class="video-box">
+        <h3>Participants</h3>
+        <div id="remoteVideos"></div>
+      </div>
     </div>
   </div>
 
@@ -71,4 +113,5 @@
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="app.js"></script>
 </body>
+
 </html>

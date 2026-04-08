@@ -66,6 +66,7 @@ export const initSocket = (server: any) => {
 
       socket.to(meetingId).emit("user-left", {
         userId,
+        socketId: socket.id
       });
     });
 
