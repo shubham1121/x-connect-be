@@ -17,6 +17,7 @@ const joinBtn = document.getElementById("joinBtn");
 const leaveBtn = document.getElementById("leaveBtn");
 const muteBtn = document.getElementById("muteBtn");
 const videoBtn = document.getElementById("videoBtn");
+const screenBtn = document.getElementById("screenBtn");
 
 // --- State ---
 // Map of socketId -> RTCPeerConnection (one per remote peer)
@@ -25,6 +26,9 @@ let localStream = null;
 let socket = null;
 let isMuted = false;
 let isVideoOff = false;
+let isScreenSharing = false;
+let screenStream = null;
+let screenTrack = null;
 
 // ============================================================
 // 1. Capture local media (camera + microphone)
@@ -42,6 +46,7 @@ async function getLocalStream() {
     try {
       console.log("Trying getUserMedia with:", JSON.stringify(constraints));
       localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      
       localVideo.srcObject = localStream;
       console.log("Local stream acquired");
       return;
@@ -73,6 +78,11 @@ function createPeerConnection(remoteSocketId) {
     });
   }
 
+  // --- Add screen share track if currently sharing ---
+  if (isScreenSharing && screenTrack && screenStream) {
+    pc.addTrack(screenTrack, screenStream);
+  }
+
   // --- ICE candidate handling ---
   // When the browser discovers a new ICE candidate, send it to
   // the remote peer via the signalling server.
@@ -88,30 +98,29 @@ function createPeerConnection(remoteSocketId) {
 
   // --- Remote stream handling ---
   // When remote tracks arrive, attach them to the remote video element.
-  pc.ontrack = (event) => {
-    console.log("Received remote track from", remoteSocketId);
+pc.ontrack = (event) => {
+  console.log("Track received from", remoteSocketId);
 
-    let video = document.getElementById(remoteSocketId);
+  const stream = event.streams[0];
+  let cameraVideo = document.getElementById(remoteSocketId + "-camera");
 
-    if (!video) {
-      video = document.createElement("video");
-      video.id = remoteSocketId;
-      video.autoplay = true;
-      video.playsInline = true;
-      video.style.width = "200px";
-
-      document.getElementById("remoteVideos").appendChild(video);
-    }
-
-    let stream = video.srcObject;
-
-    if (!stream) {
-      stream = new MediaStream();
-      video.srcObject = stream;
-    }
-
-    stream.addTrack(event.track);
-  };
+  if (!cameraVideo) {
+    // First stream from this peer → camera
+    cameraVideo = document.createElement("video");
+    cameraVideo.id = remoteSocketId + "-camera";
+    cameraVideo.autoplay = true;
+    cameraVideo.playsInline = true;
+    cameraVideo.style.width = "200px";
+    document.getElementById("remoteVideos").appendChild(cameraVideo);
+    cameraVideo.srcObject = stream;
+  } else if (cameraVideo.srcObject && cameraVideo.srcObject.id === stream.id) {
+    // Same stream as camera (e.g. audio track added to existing stream)
+    // Nothing to do – existing video element handles it
+  } else {
+    // Different stream → screen share
+    showScreenShare(remoteSocketId, stream, event.track);
+  }
+};
 
   // Store the connection for later use
   peerConnections[remoteSocketId] = pc;
@@ -163,6 +172,15 @@ async function handleOffer(data) {
       answer: pc.localDescription,
       to: from,
     });
+
+    // If we're currently sharing screen, the screen track wasn't part of
+    // the incoming offer so it wasn't negotiated in the answer.
+    // Send a new offer to renegotiate and include the screen track.
+    if (isScreenSharing && screenTrack && screenStream) {
+      const reoffer = await pc.createOffer();
+      await pc.setLocalDescription(reoffer);
+      socket.emit("offer", { offer: pc.localDescription, to: from });
+    }
   } catch (err) {
     console.error("Error handling offer:", err);
   }
@@ -248,12 +266,15 @@ function setupSocket(meetingId, userId) {
       delete peerConnections[socketId];
     }
 
-    // 🔥 Remove video element
-    const video = document.getElementById(socketId);
+    // 🔥 Remove camera video element
+    const video = document.getElementById(socketId + "-camera");
     if (video) {
-      video.srcObject = null; // optional but clean
+      video.srcObject = null;
       video.remove();
     }
+
+    // 🔥 Remove screen share if any
+    removeScreenShare(socketId);
   });
 
   socket.on("disconnect", () => {
@@ -282,7 +303,19 @@ function leaveMeeting() {
   // 🔥 Remove ALL remote videos
   const remoteContainer = document.getElementById("remoteVideos");
   if (remoteContainer) {
-    remoteContainer.innerHTML = ""; // 🔥 clears everything
+    remoteContainer.innerHTML = "";
+  }
+
+  // 🔥 Remove ALL screen shares
+  const screensContainer = document.getElementById("remoteScreens");
+  if (screensContainer) {
+    screensContainer.innerHTML = "";
+  }
+  document.getElementById("screenShareContainer").style.display = "none";
+
+  // 🔥 Stop screen sharing if active
+  if (isScreenSharing) {
+    stopScreenShare();
   }
 
   // 🔥 Stop local media
@@ -356,4 +389,119 @@ videoBtn.addEventListener("click", () => {
 
   console.log("Video enabled:", videoTrack.enabled);
 });
+
+screenBtn.addEventListener("click", async () => {
+  if (!isScreenSharing) {
+    await startScreenShare();
+  } else {
+    await stopScreenShare();
+  }
+});
+
+// ============================================================
+// Screen Share DOM helpers
+// ============================================================
+function showScreenShare(peerId, stream, track) {
+  const container = document.getElementById("screenShareContainer");
+  container.style.display = "block";
+
+  let screenVideo = document.getElementById(peerId + "-screen");
+  if (!screenVideo) {
+    screenVideo = document.createElement("video");
+    screenVideo.id = peerId + "-screen";
+    screenVideo.autoplay = true;
+    screenVideo.playsInline = true;
+    document.getElementById("remoteScreens").appendChild(screenVideo);
+  }
+  screenVideo.srcObject = stream;
+
+  // Auto-remove when the track ends (remote stops sharing)
+  if (track) {
+    track.onended = () => removeScreenShare(peerId);
+    track.onmute = () => removeScreenShare(peerId);
+  }
+}
+
+function removeScreenShare(peerId) {
+  const screenVideo = document.getElementById(peerId + "-screen");
+  if (screenVideo) {
+    screenVideo.srcObject = null;
+    screenVideo.remove();
+  }
+
+  // Hide container if no more screen shares
+  const screens = document.getElementById("remoteScreens");
+  if (screens && screens.children.length === 0) {
+    document.getElementById("screenShareContainer").style.display = "none";
+  }
+}
+
+async function startScreenShare() {
+  try {
+    screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true
+    });
+
+    screenTrack = screenStream.getVideoTracks()[0];
+
+    // 🔥 Add track in ALL peer connections and renegotiate
+    for (const [socketId, pc] of Object.entries(peerConnections)) {
+      pc.addTrack(screenTrack, screenStream);
+
+      // Renegotiate so the remote side receives the new track
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit("offer", { offer: pc.localDescription, to: socketId });
+    }
+
+    // 🔥 Show local screen share in the screen share container
+    showScreenShare("local", screenStream, null);
+
+    isScreenSharing = true;
+    screenBtn.textContent = "Stop Sharing";
+
+    // 🔥 When user clicks "Stop sharing" from browser UI
+    screenTrack.onended = () => {
+      stopScreenShare();
+    };
+
+  } catch (err) {
+    console.error("Screen share error:", err);
+  }
+}
+
+async function stopScreenShare() {
+  if (!screenStream) return;
+
+  for (const [socketId, pc] of Object.entries(peerConnections)) {
+
+    // 🔥 Find sender that is sending screen
+    const sender = pc.getSenders().find(
+      (s) => s.track === screenTrack
+    );
+
+    if (sender) {
+      pc.removeTrack(sender); // 🔥 remove ONLY screen
+    }
+
+    // Renegotiate so the remote side drops the screen track
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit("offer", { offer: pc.localDescription, to: socketId });
+  }
+
+  // 🔥 Stop screen capture
+  screenTrack.stop();
+
+  // 🔥 Remove local screen share from DOM
+  removeScreenShare("local");
+
+  screenTrack = null;
+  screenStream = null;
+
+  isScreenSharing = false;
+  screenBtn.textContent = "Share Screen";
+
+  console.log("Screen sharing stopped");
+}
 

@@ -79,6 +79,26 @@
       background: #000;
       border-radius: 4px;
     }
+
+    #screenShareContainer {
+      display: none;
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border: 2px solid #4CAF50;
+      border-radius: 8px;
+      background: #111;
+    }
+
+    #screenShareContainer h3 {
+      margin: 0 0 0.5rem;
+      color: #4CAF50;
+    }
+
+    #screenShareContainer video {
+      width: 100%;
+      background: #000;
+      border-radius: 6px;
+    }
   </style>
 </head>
 
@@ -93,6 +113,7 @@
     <button id="leaveBtn">Leave Meeting</button>
     <button id="muteBtn">Mute</button>
     <button id="videoBtn">Turn Camera Off</button>
+    <button id="screenBtn">Share Screen</button>
   </div>
 
   <!-- Video elements -->
@@ -107,6 +128,12 @@
         <div id="remoteVideos"></div>
       </div>
     </div>
+  </div>
+
+  <div id="screenShareContainer">
+    <h3>Screen Share</h3>
+    <div id="remoteScreens"></div>
+
   </div>
 
   <!-- Socket.IO client from CDN -->
